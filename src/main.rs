@@ -1,0 +1,102 @@
+/*
+Pseudocódigo para calcular si un sistema empotrado es planificable o no:
+1. Definir una estructura de datos para representar una tarea con los siguientes atributos:
+   - tiempo de ejecución (e)
+   - periodo (p)
+   - worst case response time (w)
+   - prioridad
+2. Crear una lista de tareas ordenadas por prioridad en nuestro caso será de menor periodo a mayor periodo.
+3. Para cada tarea en la lista:
+    a. Inicializar w como el tiempo de ejecución de la tarea.
+    b. Repetir hasta que w no cambie:
+        i. Calcular las interferencias de las tareas de mayor prioridad. (una tarea solo puede ser interferida por tareas de mayor prioridad)
+        ii. Actualizar w sumando el tiempo de ejecución de la tarea y las interferencias.
+    c. Si w es mayor que el periodo de la tarea, el sistema no es planificable.
+4. Si todas las tareas son planificables, el sistema es planificable
+ */
+
+struct Tarea {
+    e: u16,  // tiempo de ejecución
+    p: u16,  // periodo de la tarea
+    w: u32, // worst case response time = deadline en este caso
+}
+
+fn es_planificable(tareas: &mut Vec<Tarea>) -> bool {
+    // Ordenar las tareas por periodo (prioridad)
+    tareas.sort_by_key(|t| t.p);
+
+    for i in 0..tareas.len() {
+        // Split the slice so we can borrow the current task mutably and
+        // iterate the higher-priority tasks (indices 0..i) separately.
+        let (prior, rest) = tareas.split_at_mut(i);
+        let tarea = &mut rest[0];
+        tarea.w = tarea.e as u32; // Inicializar w como el tiempo de ejecución
+
+        let mut iter_count = 0usize;
+
+        loop {
+            iter_count += 1;
+            let w_anterior = tarea.w;
+            let mut interferencia = 0u32;
+
+            // Calcular las interferencias de las tareas de mayor prioridad
+            for tarea_mayor_prioridad in prior.iter() {
+                interferencia += ((w_anterior as f32 / tarea_mayor_prioridad.p as f32).ceil() as u32)
+                    * tarea_mayor_prioridad.e as u32;
+            }
+
+            // Actualizar w
+            tarea.w = tarea.e as u32 + interferencia;
+
+            // Si w no cambia, salir del bucle e informar la iteración en la que convergió
+            if tarea.w == w_anterior {
+                println!("Tarea {} convergió en {} iteraciones.", i + 1, iter_count);
+                break;
+            }
+        }
+
+        // Verificar si la tarea es planificable
+        if tarea.w > tarea.p as u32 {
+            return false; // El sistema no es planificable
+        }
+    }
+
+    true // Todas las tareas son planificables
+}
+
+fn liu_layland(tareas: &Vec<Tarea>) -> (f32,f32) {
+    let utilizacion: f32 = tareas.iter().map(|t| t.e as f32 / t.p as f32).sum();
+    let n = tareas.len() as f32;
+    let limite = n * (2f32.powf(1f32 / n) - 1f32);
+    return (utilizacion, limite);
+}
+
+fn main() {
+    let mut tareas = vec![
+        Tarea { p: 40, e: 20, w: 0},
+        Tarea { p: 100, e: 25, w: 0},
+        Tarea { p: 150, e: 10, w: 0},
+        Tarea { p: 500, e: 10, w: 0},
+    ];
+
+    let (utilizacion, limite) = liu_layland(&tareas);
+    println!("Utilización: {:.4}, Límite de Liu & Layland: {:.4}", utilizacion, limite);
+    if utilizacion <= limite {
+        println!("Según Liu & Layland, el sistema es planificable.");
+    } else {
+        println!("Según Liu & Layland, no se puede asegurar que el sistema es planificable.");
+    }
+
+    if es_planificable(&mut tareas) {
+        println!("El sistema es planificable.");
+    } else {
+        println!("El sistema no es planificable.");
+    }
+
+    println!("Tabla de tareas con sus Worst Case Response Times:");
+    println!("Tarea\tPeriodo (p)\tTiempo Ejec (e)\tWCRT (w)");
+    for (i, tarea) in tareas.iter().enumerate() {
+        println!("T{}\t{}\t\t{}\t\t{}", i + 1, tarea.p, tarea.e, tarea.w);
+    }
+
+}
