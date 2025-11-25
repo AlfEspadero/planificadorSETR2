@@ -4,7 +4,6 @@ Pseudocódigo para calcular si un sistema empotrado es planificable o no:
    - tiempo de ejecución (e)
    - periodo (p)
    - worst case response time (w)
-   - prioridad
 2. Crear una lista de tareas ordenadas por prioridad en nuestro caso será de menor periodo a mayor periodo.
 3. Para cada tarea en la lista:
 	a. Inicializar w como el tiempo de ejecución de la tarea.
@@ -18,9 +17,9 @@ Pseudocódigo para calcular si un sistema empotrado es planificable o no:
 use std::io::stdin;
 
 struct Tarea {
-	e: u16, // tiempo de ejecución
-	p: u16, // periodo de la tarea
-	w: u32, // worst case response time = deadline en este caso
+	e: u32, // tiempo de ejecución
+	p: u32, // periodo
+	w: u32, // worst case response time
 }
 
 fn es_planificable(tareas: &mut Vec<Tarea>) -> bool {
@@ -28,11 +27,9 @@ fn es_planificable(tareas: &mut Vec<Tarea>) -> bool {
 	tareas.sort_by_key(|t| t.p);
 
 	for i in 0..tareas.len() {
-		// Split the slice so we can borrow the current task mutably and
-		// iterate the higher-priority tasks (indices 0..i) separately.
 		let (prior, rest) = tareas.split_at_mut(i);
 		let tarea = &mut rest[0];
-		tarea.w = tarea.e as u32; // Inicializar w como el tiempo de ejecución
+		tarea.w = tarea.e; // Inicializar w
 
 		let mut iter_count = 0usize;
 
@@ -43,23 +40,25 @@ fn es_planificable(tareas: &mut Vec<Tarea>) -> bool {
 
 			// Calcular las interferencias de las tareas de mayor prioridad
 			for tarea_mayor_prioridad in prior.iter() {
-				interferencia += ((w_anterior as f32 / tarea_mayor_prioridad.p as f32).ceil()
-					as u32) * tarea_mayor_prioridad.e as u32;
+				// Integer ceiling calculation: ceil(a/b) = (a + b - 1) / b
+				let num_activations =
+					(w_anterior + tarea_mayor_prioridad.p - 1) / tarea_mayor_prioridad.p;
+				interferencia += num_activations * tarea_mayor_prioridad.e;
 			}
 
 			// Actualizar w
-			tarea.w = tarea.e as u32 + interferencia;
+			tarea.w = tarea.e + interferencia;
+
+			// Verificar si w excede el periodo
+			if tarea.w > tarea.p {
+				return false;
+			}
 
 			// Si w no cambia, salir del bucle e informar la iteración en la que convergió
 			if tarea.w == w_anterior {
 				println!("Tarea {} convergió en {} iteraciones.", i + 1, iter_count);
 				break;
 			}
-		}
-
-		// Verificar si la tarea es planificable
-		if tarea.w > tarea.p as u32 {
-			return false; // El sistema no es planificable
 		}
 	}
 
@@ -105,7 +104,11 @@ fn main() {
 			continue;
 		};
 		match (p_str.parse::<u16>(), e_str.parse::<u16>()) {
-			(Ok(p), Ok(e)) => tareas.push(Tarea { p, e, w: 0 }),
+			(Ok(p), Ok(e)) => tareas.push(Tarea {
+				p: p as u32,
+				e: e as u32,
+				w: 0,
+			}),
 			_ => eprintln!("Línea {} con números inválidos, se ignora.", idx + 1),
 		}
 	}
